@@ -105,7 +105,7 @@ out/**
 export const SCAFFOLD_SETTINGS = JSON.stringify(
   {
     maxReviewLoops: 100,
-    model: "amazon-bedrock/us.anthropic.claude-opus-4-6-v1",
+    model: "amazon-bedrock/us.anthropic.claude-sonnet-4-6",
     thinkingLevel: "off",
     architectEnabled: true,
     reviewTimeoutMs: 120000,

@@ -72,7 +72,7 @@ Use `/scaffold-review-files` to generate config templates.
 ```json
 {
   "maxReviewLoops": 100,
-  "model": "amazon-bedrock/us.anthropic.claude-opus-4-6-v1",
+  "model": "amazon-bedrock/us.anthropic.claude-sonnet-4-6",
   "thinkingLevel": "off",
   "architectEnabled": true,
   "reviewTimeoutMs": 120000,
@@ -87,7 +87,7 @@ Use `/scaffold-review-files` to generate config templates.
 | Setting            | Type        | Default                                                        | Description                                                                                |
 | ------------------ | ----------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `maxReviewLoops`   | integer > 0 | `100`                                                          | Max review→fix→review cycles before giving up                                              |
-| `model`            | string      | `"amazon-bedrock/us.anthropic.claude-opus-4-6-v1"`             | Reviewer model (`"provider/model-id"`)                                                     |
+| `model`            | string      | `"amazon-bedrock/us.anthropic.claude-sonnet-4-6"`              | Reviewer model (`"provider/model-id"`)                                                     |
 | `thinkingLevel`    | string      | `"off"`                                                        | `off\|minimal\|low\|medium\|high\|xhigh`                                                   |
 | `architectEnabled` | boolean     | `true`                                                         | Enable architect review (triggers when >1 file reviewed from git)                          |
 | `reviewTimeoutMs`  | integer > 0 | `120000`                                                       | Max wall-clock per review in ms                                                            |
