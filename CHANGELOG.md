@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 (2026-05-08)
+
+### Changes
+
+- **Default reviewer model changed to Sonnet 4.6** — `DEFAULT_SETTINGS.model` now defaults to `amazon-bedrock/us.anthropic.claude-sonnet-4-6` (was `amazon-bedrock/us.anthropic.claude-opus-4-6-v1`). Sonnet 4.6 is sufficient for per-turn code review and substantially cheaper/faster than Opus 4.6. Users with an existing `.hardno/settings.json` override are unaffected.
+
 ## 1.0.0 (2026-04-26)
 
 ### Breaking Changes
