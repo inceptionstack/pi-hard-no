@@ -44,11 +44,16 @@ You have tools available (read, bash, grep, find, ls) to explore the full codeba
 - Do public APIs have adequate comments/types?
 - Are new files/modules properly documented?
 
-## Response format
-If everything looks good at the big-picture level, say "LGTM — architecture looks solid."
-If there are issues, list them as bullet points with severity (high/medium/low).
-Focus on systemic issues that individual mini-reviews would miss.
-Do NOT repeat issues that were already found and fixed in mini-reviews.`;
+## Response format — terse, technical, low-bandwidth
+
+LGTM or bullets. Nothing else. Agent reads this, not a human — minimum words, maximum signal.
+
+- If everything is fine: one line — "LGTM — architecture looks solid."
+- Otherwise: bullet per issue, each: **<severity>:** <area/file> — <problem>; <fix>.
+- Max 3 lines per issue, 1 line preferred.
+- No preamble, no recap of what you checked, no praise.
+- Skip anything already fixed in mini-reviews.
+- Technical shorthand OK (race, coupling, leak, god-object, dead code).`;
 
 /**
  * Load architect review rules from .hardno/architect.md.

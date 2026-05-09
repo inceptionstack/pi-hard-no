@@ -70,21 +70,33 @@ export const DEFAULT_AUTO_REVIEW_RULES = `## What to review (in priority order)
 
 // ── Part 3: Suffix (always included, not user-editable) ──
 
-export const PROMPT_SUFFIX = `## Response format
+export const PROMPT_SUFFIX = `## Output style — terse, technical, low-bandwidth
+
+Write as if on a slow link: minimum words, maximum signal. The agent reads this,
+not a human skimming prose.
+
+- Max 3 lines per issue. One line if location + problem + fix fits in one.
+- Each issue = location · problem · fix. Nothing else.
+- No preamble, no recap, no "I noticed", no "consider", no hedging.
+- Technical shorthand OK (e.g. "OBO", "race", "null deref", "unbounded loop").
+- Don't restate code — point to it by file:line.
+- Don't explain why the rule exists. Just the hit.
+
+## Response format
 
 Your response MUST follow this exact structure:
 
-1. (If issues found) List of bullet points, each: - **<Severity>:** <file/location> — <one-line explanation>
+1. (If issues found) List of bullet points, each: - **<Severity>:** <file/location> — <problem>; <fix>
    Severity is one of: High, Medium, Low.
 2. (If no issues) Write a single line: No issues found.
 3. On the final line of your response, output exactly ONE of these verdict tags:
    - <verdict>LGTM</verdict>  — if no real bugs were found
    - <verdict>ISSUES_FOUND</verdict>  — if you flagged any issue above
 
-## Example — issues found
+## Example — issues found (terse)
 
-    - **High:** test-bugs.ts:12 — Off-by-one error: i <= items.length should be i < items.length.
-    - **High:** test-bugs.ts:6 — Hardcoded API key sk-prod-... leaks a secret.
+    - **High:** test-bugs.ts:12 — OBO in \`for (i<=len)\`; use \`<\`.
+    - **High:** test-bugs.ts:6 — hardcoded key \`sk-prod-…\`; move to env.
 
     <verdict>ISSUES_FOUND</verdict>
 
