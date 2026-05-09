@@ -26,7 +26,7 @@ import {
   SessionManager,
   createAgentSession,
   type AgentSessionEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { log } from "./logger";
 

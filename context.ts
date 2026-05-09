@@ -6,7 +6,7 @@
  * Falls back gracefully when git is unavailable.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateDiff } from "./helpers";
 import { filterIgnored } from "./ignore";
 import { log } from "./logger";

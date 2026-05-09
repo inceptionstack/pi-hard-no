@@ -17,7 +17,7 @@ import {
   AuthStorage,
   ModelRegistry,
   type AgentSessionEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { log, logReview, safeStringify, type ReviewToolCall } from "./logger";
 
