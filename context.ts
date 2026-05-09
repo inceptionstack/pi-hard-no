@@ -627,6 +627,14 @@ export async function getBestReviewContent(
 
   const allowLastCommitFallback = hasGitCommitCommand(agentToolCalls);
 
+  // Also allow last-commit fallback when the agent modified files via edit/write
+  // tools but the working tree is clean (implying an undetected commit occurred,
+  // e.g. via subprocess wrapper that evaded hasGitCommitCommand detection).
+  const agentModifiedFiles = agentToolCalls.some(
+    (tc) => tc.name === "write" || tc.name === "edit",
+  );
+  const shouldFallbackToLastCommit = allowLastCommitFallback || agentModifiedFiles;
+
   if (gitRoots && gitRoots.size > 0) {
     const result = await getContentFromGitRoots(
       pi,
@@ -635,7 +643,7 @@ export async function getBestReviewContent(
       summarySection,
       onStatus,
       lim,
-      allowLastCommitFallback,
+      shouldFallbackToLastCommit,
     );
     if (result) return result;
   }
@@ -643,7 +651,7 @@ export async function getBestReviewContent(
   const cwdResult = await getContentFromCwd(pi, ignorePatterns, summarySection, onStatus, lim);
   if (cwdResult) return cwdResult;
 
-  if (allowLastCommitFallback) {
+  if (shouldFallbackToLastCommit) {
     const lastCommitResult = await getContentFromLastCommit(
       pi,
       ignorePatterns,

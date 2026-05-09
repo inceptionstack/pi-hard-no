@@ -370,7 +370,11 @@ export function hasGitCommitCommand(toolCalls: TrackedToolCall[]): boolean {
   return toolCalls.some((tc) => {
     if (tc.name !== "bash") return false;
     const cmd = String(tc.input?.command ?? "");
-    return /\bgit(?:\s+-C\s+\S+)?\s+commit\b/.test(cmd);
+    // Direct: git commit
+    if (/\bgit(?:\s+-C\s+\S+)?\s+commit\b/.test(cmd)) return true;
+    // Subprocess wrapper: perl/python/node/ruby calling git commit
+    if (/\b(?:python3?|node|perl|ruby)\b/.test(cmd) && /\bgit\b/.test(cmd) && /\bcommit\b/.test(cmd)) return true;
+    return false;
   });
 }
 
