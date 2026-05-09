@@ -1,6 +1,6 @@
 {
   "name": "@inceptionstack/pi-hard-no",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "description": "Pi extension — automatic code review after every agent turn",
   "license": "MIT",

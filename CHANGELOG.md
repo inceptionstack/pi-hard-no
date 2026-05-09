@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3 (2026-05-09)
+
+### Changes
+
+- **Terse low-bandwidth output style** for both the senior reviewer and architect reviewer. Output is aimed at the agent that consumes it, not a human skimmer: max 3 lines per issue (1 line preferred), `location · problem · fix`, no preamble/recap/hedging, technical shorthand allowed. Reduces prompt noise and speeds up the agent's parse of review results.
+
 ## 1.0.2 (2026-05-09)
 
 ### Changes
