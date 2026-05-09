@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.2 (2026-05-09)
+
+### Changes
+
+- **Default reviewer model changed to Llama 4 Maverick 17B** — `DEFAULT_SETTINGS.model` now defaults to `amazon-bedrock/us.meta.llama4-maverick-17b-instruct-v1:0` (was `amazon-bedrock/us.anthropic.claude-sonnet-4-6`). Backed by a head-to-head eval on 10 fixtures × 36 planted issues across TypeScript/Python/Go/JS (correctness, concurrency, SOLID, security, clean-code, DRY, API-contract, boundary, clean-control categories), cross-checked by Claude Opus 4.7 as judge:
+  - **7.3× faster** than Sonnet 4.6 (median 1.67s vs 12.11s per review)
+  - **5%** of the per-review cost (~$0.001 vs $0.018)
+  - **100%** recall on planted issues
+  - **0** `worse` verdicts from the Opus-4.7 judge, **0** false-positives on clean control fixtures, **1** minor hallucination total
+  - Opus 4.7 rated it `slightly_worse` on 8/10 fixtures due to Sonnet 4.6 catching _bonus_ issues not planted in the eval (e.g. unused imports) — all planted bugs were caught correctly with actionable suggestions.
+
+  For teams that want maximum thoroughness (catching bonus/unplanted issues), override back to Sonnet 4.6 or Claude Haiku 4.5 via `.hardno/settings.json`.
+
+  Users with an existing `.hardno/settings.json` override are unaffected.
+
 ## 1.0.1 (2026-05-08)
 
 ### Changes

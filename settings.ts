@@ -59,7 +59,7 @@ function readConfigFileSync(cwd: string, filename: string): string | null {
 
 export interface AutoReviewSettings {
   maxReviewLoops: number;
-  model: string; // "provider/model-id" e.g. "amazon-bedrock/us.anthropic.claude-sonnet-4-6"
+  model: string; // "provider/model-id" e.g. "amazon-bedrock/us.meta.llama4-maverick-17b-instruct-v1:0"
   thinkingLevel: string; // "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
   architectEnabled: boolean;
   reviewTimeoutMs: number; // Max wall-clock for a single review (default 120s)
@@ -86,7 +86,7 @@ export const DEFAULT_CANCEL_SHORTCUT = ""; // no default shortcut — use /cance
 
 export const DEFAULT_SETTINGS: AutoReviewSettings = {
   maxReviewLoops: 100,
-  model: "amazon-bedrock/us.anthropic.claude-sonnet-4-6",
+  model: "amazon-bedrock/us.meta.llama4-maverick-17b-instruct-v1:0",
   thinkingLevel: "off",
   architectEnabled: true, // triggers when >1 file reviewed
   reviewTimeoutMs: 120_000,

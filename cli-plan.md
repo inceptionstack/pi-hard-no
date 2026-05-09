@@ -308,7 +308,7 @@ export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhi
   "maxReviewLoops": 100,
   "backend": { "id": "pi-sdk" },
   "senior": {
-    "model": "amazon-bedrock/us.anthropic.claude-sonnet-4-6",
+    "model": "amazon-bedrock/us.meta.llama4-maverick-17b-instruct-v1:0",
     "thinkingLevel": "off",
     "timeoutMs": 120000
   },
