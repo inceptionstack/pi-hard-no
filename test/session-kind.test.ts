@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { isSpawnedSubSession } from "../session-kind";
 

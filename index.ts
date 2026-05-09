@@ -21,7 +21,7 @@
  *   or: cp index.ts ~/.pi/agent/extensions/pi-hard-no.ts
  */
 
-import { type ExtensionAPI, isToolCallEventType } from "@mariozechner/pi-coding-agent";
+import { type ExtensionAPI, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
 import {
   type AutoReviewSettings,
