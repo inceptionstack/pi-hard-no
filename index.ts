@@ -615,10 +615,18 @@ export default function (pi: ExtensionAPI) {
         const hasArchitectStep = Boolean(outcome.architect);
         const hasArchitectFailure = Boolean(outcome.architectFailure);
         const hasFollowUp = hasArchitectStep || hasArchitectFailure;
+        // Apply dismiss filtering (suppress previously dismissed findings, number remaining)
+        const filteredResult = orchestrator.applyDismissFiltering(outcome.senior.result);
+
+        // If dismiss filtering converted issues to LGTM, clear the issues state
+        if (filteredResult.isLgtm && !outcome.senior.result.isLgtm) {
+          orchestrator.clearIssuesAfterDismiss();
+        }
+
         // Always trigger a turn for ISSUES_FOUND so agent can fix.
         // Also trigger for LGTM so agent can continue (push, etc.).
         // Skip triggering only when architect (success or failure) follows — it sends its own message.
-        sendReviewResult(pi, outcome.senior.result, outcome.senior.label ?? "", {
+        sendReviewResult(pi, filteredResult, outcome.senior.label ?? "", {
           showLoopCount: outcome.senior.loopInfo,
           reviewedFiles: outcome.files,
           triggerTurn: !hasFollowUp,
@@ -694,6 +702,15 @@ export default function (pi: ExtensionAPI) {
     if (lastAssistant?.stopReason === "aborted") {
       updateStatus(ctx);
       return;
+    }
+
+    // Process DISMISS markers from agent's response (before running review)
+    if (lastAssistant) {
+      const textParts = (lastAssistant.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text);
+      const agentText = textParts.join("\n");
+      if (agentText) {
+        orchestrator.processDismissals(agentText);
+      }
     }
 
     if (!orchestrator.isEnabled) {

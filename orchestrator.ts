@@ -10,6 +10,7 @@ import type { AutoReviewSettings } from "./settings";
 import { runArchitectReview, shouldRunArchitectReview } from "./architect";
 import type { ReviewResult, ReviewRunner } from "./reviewer";
 import { log } from "./logger";
+import { DismissTracker, numberFindings, filterSuppressed } from "./dismiss";
 
 const MIN_REVIEW_CONTENT_LENGTH = 50;
 
@@ -110,6 +111,7 @@ export class ReviewOrchestrator {
   private sessionChangedFiles = new Set<string>();
   private sessionHasGitContent = false;
   private lastReviewHadIssues = false;
+  private readonly dismissTracker = new DismissTracker();
 
   constructor(opts: ReviewOrchestratorOptions) {
     this.runner = opts.runner;
@@ -148,6 +150,35 @@ export class ReviewOrchestrator {
     this.isReviewingValue = false;
     this.resetCycleState();
     this.lastReviewHadIssues = false;
+    this.dismissTracker.reset();
+  }
+
+  /** Process agent's response text for DISMISS markers. Call before review. */
+  processDismissals(agentText: string): number {
+    return this.dismissTracker.processDismissals(agentText);
+  }
+
+  /** Apply dismiss filtering + numbering to review result text. */
+  applyDismissFiltering(result: ReviewResult): ReviewResult {
+    const suppressed = this.dismissTracker.getSuppressed();
+    const filtered = filterSuppressed(result.text, suppressed);
+
+    // All findings suppressed — treat as LGTM
+    if (filtered === null) {
+      log("dismiss: all findings suppressed — treating as LGTM");
+      return { ...result, isLgtm: true, text: "No issues found (previously dismissed findings suppressed)." };
+    }
+
+    // Number remaining findings and track them
+    const { numbered, findings } = numberFindings(filtered);
+    this.dismissTracker.setLastFindings(findings);
+    return { ...result, text: numbered };
+  }
+
+  /** Clear issue state after dismiss filtering converts to LGTM. */
+  clearIssuesAfterDismiss(): void {
+    this.lastReviewHadIssues = false;
+    this.loopCount = 0;
   }
 
   cancel(): void {

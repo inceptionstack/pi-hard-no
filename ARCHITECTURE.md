@@ -39,6 +39,7 @@ All arrows mean "imports from". No circular dependencies exist.
                   ▼     ▼     ▼      ▼      ▼      ▼
       orchestrator.ts  commands.ts  message-sender.ts  review-display.ts  judge.ts
            |               |              |
+           ├── dismiss.ts
            ├── reviewer.ts (injected)     ├── reviewer.ts (types)
            ├── context.ts  (injected)     └── logger.ts
            ├── architect.ts
