@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 (2026-05-10)
+
+### Features
+
+- **DISMISS F# protocol** for false-positive suppression. Findings are now numbered (F1, F2, ...) in review messages. Agent can reply `DISMISS F1: reason` to mark a finding as intentional. After 2 dismissals of the same finding, it's auto-suppressed in future review cycles. If all findings are suppressed, review passes as LGTM and push is unblocked.
+
 ## 1.0.3 (2026-05-09)
 
 ### Changes

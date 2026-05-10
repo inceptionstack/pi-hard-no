@@ -74,7 +74,7 @@ export function sendReviewResult(
     pi.sendMessage(
       {
         customType: "code-review",
-        content: `🔍 **Automated Code Review**${loopInfo || (label ? ` (${label})` : "")} — ${duration}\n\nA separate reviewer examined your recent changes and found potential issues:\n\n${result.text}${fileList}${idFooter}\n\nPlease review these findings. If any are valid, fix them. If they're false positives, briefly explain why and move on.\n\n⚠️ **Do NOT push to remote yet.** Fix any issues first. Do NOT push after fixing either — a new review cycle will check your fixes automatically.`,
+        content: `🔍 **Automated Code Review**${loopInfo || (label ? ` (${label})` : "")} — ${duration}\n\nA separate reviewer examined your recent changes and found potential issues:\n\n${result.text}${fileList}${idFooter}\n\nPlease review these findings. If any are valid, fix them. If they're false positives, reply with \`DISMISS F#: reason\` (e.g. \`DISMISS F1: intentional design\`) and move on.\n\n⚠️ **Do NOT push to remote yet.** Fix any issues first. Do NOT push after fixing either — a new review cycle will check your fixes automatically.`,
         display: true,
       },
       { triggerTurn: opts?.triggerTurn ?? true, deliverAs: "followUp" },
