@@ -392,7 +392,8 @@ export async function runReviewSession(prompt: string, opts: ReviewOptions): Pro
   }
 
   const cleanedText = cleanReviewText(reviewText);
-  const isLgtm = verdict === "lgtm";
+  // If model said ISSUES_FOUND but produced no actual findings text, treat as LGTM
+  const isLgtm = verdict === "lgtm" || (verdict === "issues" && !cleanedText.trim());
   const durationMs = Date.now() - startTime;
 
   rlog(
