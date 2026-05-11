@@ -9,8 +9,16 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import {
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  mkdirSync,
+  existsSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 
 /**
@@ -354,57 +362,152 @@ export async function loadAutoReviewRules(cwd: string): Promise<string | null> {
  * `roundhouse` `/toggle-review`) without restarting the session.
  *
  * Local (.hardno/settings.json in cwd) takes precedence over global
- * (~/.pi/.hardno/settings.json). Returns null if not set / unreadable /
- * malformed — callers should fall back to their cached settings value.
+ * (~/.pi/.hardno/settings.json).
+ *
+ * Semantics: local "wins on silence" too — if the local file exists but is
+ * missing/malformed/unreadable (anything except ENOENT), we do NOT fall
+ * through to global. This prevents a surprise where corrupting local silently
+ * exposes a different global value.
  */
 export function isEnabledFromDisk(cwd: string, home?: string): boolean | null {
   for (const dir of configDirs(cwd, home)) {
+    const path = join(dir, "settings.json");
+    let raw: string;
     try {
-      const raw = readFileSync(join(dir, "settings.json"), "utf8");
+      raw = readFileSync(path, "utf8");
+    } catch (err: any) {
+      // Only fall through on ENOENT. Permission errors, IO errors, etc. should
+      // halt resolution — if the more-specific file exists but we can't read
+      // it, we shouldn't silently fall through to the less-specific file.
+      if (err?.code === "ENOENT") continue;
+      return null;
+    }
+    // File exists: parse once; any failure/shape-mismatch = return null WITHOUT
+    // falling through (local wins on silence / corruption).
+    try {
       const parsed = JSON.parse(raw);
       if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
         if (typeof parsed.enabled === "boolean") return parsed.enabled;
-        // File exists but no `enabled` key — don't fall through to next dir,
-        // since the more-specific file "wins" even when silent on this field.
-        return null;
       }
+      return null;
     } catch {
-      /* try next dir */
+      return null;
     }
   }
   return null;
 }
 
 /**
- * Persist `enabled: boolean` to the global settings file (~/.pi/.hardno/settings.json).
+ * Resolve which settings.json path to *write* to for persisting the `enabled`
+ * flag. Matches the read-resolution path used by loadSettings / isEnabledFromDisk:
+ *   - If local (cwd/.hardno/settings.json) exists, write there (local wins).
+ *   - Otherwise, write to global (~/.pi/.hardno/settings.json).
+ *
+ * This prevents the "toggle appears to revert" bug where writing global
+ * gets masked by a local file that the read path loads first.
+ */
+export function resolveWritePath(cwd: string, home?: string): string {
+  const [localDir, globalDir] = configDirs(cwd, home);
+  const localPath = join(localDir, "settings.json");
+  if (existsSync(localPath)) return localPath;
+  return join(globalDir, "settings.json");
+}
+
+/**
+ * Persist `enabled: boolean` to the settings file selected by resolveWritePath.
  * Atomic tmp+rename; preserves other fields. Creates the file/dir if missing.
  *
- * Chose the global file over the local one because:
- *   - Toggle intent is user-wide, not project-scoped
- *   - Local .hardno/ may not exist for every cwd
- *   - External tools (roundhouse) can target one known path
+ * Race handling: does a read-modify-write with a small retry window. If the
+ * file mtime changes between our read and our intended rename, we re-read,
+ * re-apply `enabled`, and retry (up to 3 attempts). Eliminates the common
+ * case where an external writer (e.g. roundhouse) flips a different field
+ * concurrently.
+ *
+ * Before overwriting a non-plain-object or malformed file (rare; usually
+ * means another tool wrote garbage), we back up the original bytes to
+ * <settings>.corrupt-<ts>.bak so user data isn't silently discarded.
  */
-export function writeEnabledToDisk(enabled: boolean, home?: string): void {
-  const globalDir = join(home ?? homedir(), ".pi", ".hardno");
-  const target = join(globalDir, "settings.json");
+export function writeEnabledToDisk(
+  enabled: boolean,
+  opts: { cwd?: string; home?: string; targetPath?: string } = {},
+): void {
+  const home = opts.home ?? homedir();
+  // Explicit targetPath wins (useful for tests); otherwise resolve via cwd.
+  const target =
+    opts.targetPath ??
+    (opts.cwd ? resolveWritePath(opts.cwd, home) : join(home, ".pi", ".hardno", "settings.json"));
+  const dir = dirname(target);
 
-  // Read existing (preserve other fields)
-  let existing: Record<string, unknown> = {};
-  try {
-    const raw = readFileSync(target, "utf8");
-    const parsed = JSON.parse(raw);
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-      existing = parsed as Record<string, unknown>;
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Read existing (preserve other fields)
+    let existing: Record<string, unknown> = {};
+    let wasMalformed = false;
+    let rawBytes: string | null = null;
+    let readMtime: number | null = null;
+    try {
+      rawBytes = readFileSync(target, "utf8");
+      readMtime = statSync(target).mtimeMs;
+      const parsed = JSON.parse(rawBytes);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        existing = parsed as Record<string, unknown>;
+      } else {
+        wasMalformed = true; // valid JSON but wrong shape (array / scalar)
+      }
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") wasMalformed = true;
+      // else: file missing, start fresh
     }
-  } catch {
-    /* file missing or malformed — start fresh */
+
+    // Safety: if the existing file had bytes we can't safely merge into,
+    // back them up before overwrite so user data isn't silently lost.
+    if (wasMalformed && rawBytes !== null) {
+      try {
+        const backup = `${target}.corrupt-${Date.now()}.bak`;
+        writeFileSync(backup, rawBytes, { encoding: "utf8" });
+      } catch {
+        /* best-effort only */
+      }
+    }
+
+    existing.enabled = enabled;
+
+    // Atomic write: tmp + rename in the same directory.
+    mkdirSync(dir, { recursive: true });
+    const tmp = `${target}.tmp-${process.pid}-${Date.now()}-${attempt}`;
+    try {
+      writeFileSync(tmp, JSON.stringify(existing, null, 2) + "\n", { encoding: "utf8" });
+
+      // Race check: if the file's mtime changed after our read, someone else
+      // wrote between our read and our rename. Discard our tmp and retry so
+      // we don't clobber their edits to other fields.
+      if (readMtime !== null && attempt < MAX_ATTEMPTS) {
+        try {
+          const currentMtime = statSync(target).mtimeMs;
+          if (currentMtime !== readMtime) {
+            try {
+              unlinkSync(tmp);
+            } catch {
+              /* ignore */
+            }
+            continue;
+          }
+        } catch {
+          /* stat failed — fall through to rename */
+        }
+      }
+
+      renameSync(tmp, target);
+      return;
+    } catch (err) {
+      // Clean up orphan tmp on any failure so we don't leave garbage behind.
+      try {
+        unlinkSync(tmp);
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    }
   }
-
-  existing.enabled = enabled;
-
-  // Atomic write: tmp + rename in the same directory
-  mkdirSync(globalDir, { recursive: true });
-  const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, JSON.stringify(existing, null, 2) + "\n", { encoding: "utf8" });
-  renameSync(tmp, target);
 }

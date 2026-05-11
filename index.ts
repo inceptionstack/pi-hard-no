@@ -275,9 +275,10 @@ export default function (pi: ExtensionAPI) {
     try {
       orchestrator.setEnabled(!orchestrator.isEnabled);
       // Persist so the toggle survives restart + is visible to external tools.
-      // Non-fatal on error — log and continue; UI feedback reflects in-memory state.
+      // Write to the same file the read path would load (local wins if present)
+      // so an in-TUI toggle isn't masked by a local settings file on next read.
       try {
-        writeEnabledToDisk(orchestrator.isEnabled);
+        writeEnabledToDisk(orchestrator.isEnabled, { cwd: ctx.cwd });
         if (settings) settings.enabled = orchestrator.isEnabled;
       } catch (err: any) {
         log(`warning: could not persist toggle: ${err?.message ?? err}`);
@@ -732,7 +733,10 @@ export default function (pi: ExtensionAPI) {
     if (diskEnabled !== null && diskEnabled !== orchestrator.isEnabled) {
       log(`runtime toggle: disk says enabled=${diskEnabled}, updating orchestrator`);
       orchestrator.setEnabled(diskEnabled);
-      settings.enabled = diskEnabled;
+      // F4: guard like the toggleReview handler for consistency. `settings`
+      // is set on session_start before agent_end can fire, but defensive
+      // code is cheap and matches the other call site.
+      if (settings) settings.enabled = diskEnabled;
     }
 
     if (!orchestrator.isEnabled) {
