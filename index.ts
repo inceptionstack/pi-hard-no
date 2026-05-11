@@ -30,6 +30,8 @@ import {
   loadReviewRules,
   loadAutoReviewRules,
   loadShortcutSettingsSync,
+  isEnabledFromDisk,
+  writeEnabledToDisk,
 } from "./settings";
 import { runReviewSession } from "./reviewer";
 import { classifyBashCommand, defaultJudgeRunner } from "./judge";
@@ -272,6 +274,14 @@ export default function (pi: ExtensionAPI) {
 
     try {
       orchestrator.setEnabled(!orchestrator.isEnabled);
+      // Persist so the toggle survives restart + is visible to external tools.
+      // Non-fatal on error — log and continue; UI feedback reflects in-memory state.
+      try {
+        writeEnabledToDisk(orchestrator.isEnabled);
+        if (settings) settings.enabled = orchestrator.isEnabled;
+      } catch (err: any) {
+        log(`warning: could not persist toggle: ${err?.message ?? err}`);
+      }
       if (orchestrator.isEnabled) {
         if (ctx.hasUI) ctx.ui.notify(`Review: on`, "info");
         // Only prompt to review if agent is idle and there are pending files.
@@ -706,11 +716,23 @@ export default function (pi: ExtensionAPI) {
 
     // Process DISMISS markers from agent's response (before running review)
     if (lastAssistant) {
-      const textParts = (lastAssistant.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text);
+      const textParts = (lastAssistant.content ?? [])
+        .filter((b: any) => b.type === "text")
+        .map((b: any) => b.text);
       const agentText = textParts.join("\n");
       if (agentText) {
         orchestrator.processDismissals(agentText);
       }
+    }
+
+    // Runtime re-read: pick up toggles made by external tools (e.g.
+    // roundhouse's /toggle-review) since the last turn. Cheap — synchronous
+    // stat+parse of a tiny JSON file once per agent_end.
+    const diskEnabled = isEnabledFromDisk(ctx.cwd);
+    if (diskEnabled !== null && diskEnabled !== orchestrator.isEnabled) {
+      log(`runtime toggle: disk says enabled=${diskEnabled}, updating orchestrator`);
+      orchestrator.setEnabled(diskEnabled);
+      settings.enabled = diskEnabled;
     }
 
     if (!orchestrator.isEnabled) {
@@ -724,7 +746,7 @@ export default function (pi: ExtensionAPI) {
     await runAutoReview(ctx, "auto");
   });
 
-  // ── Shortcuts ──────────────────────────────────────
+  // ── Shortcuts ──────────────────────────────────
 
   // Cancel handler — shared by shortcut + command
   function cancelReview(ctx: { ui: any; hasUI?: boolean }, source: string) {
@@ -873,6 +895,11 @@ export default function (pi: ExtensionAPI) {
     ignorePatterns = patterns;
     architectRules = rRules;
     settings = settingsResult.settings;
+
+    // Seed orchestrator enabled-state from persisted settings. This makes the
+    // toggle survive restarts (previously it was reset to `true` each session).
+    orchestrator.setEnabled(settings.enabled);
+    if (!settings.enabled) log(`review starts disabled (persisted enabled=false)`);
 
     if (autoReviewRules) log("Loaded auto-review rules from .hardno/auto-review.md");
     if (customRules) log("Loaded custom rules from .hardno/review-rules.md");

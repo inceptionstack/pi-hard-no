@@ -9,7 +9,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -58,6 +58,10 @@ function readConfigFileSync(cwd: string, filename: string): string | null {
 // ── Types ────────────────────────────────────────────
 
 export interface AutoReviewSettings {
+  /** Master on/off switch for auto-review. Persisted across sessions.
+   * Re-read from disk at each agent_end so external tools (e.g. roundhouse's
+   * /toggle-review) can flip it without restarting the session. */
+  enabled: boolean;
   maxReviewLoops: number;
   model: string; // "provider/model-id" e.g. "amazon-bedrock/us.meta.llama4-maverick-17b-instruct-v1:0"
   thinkingLevel: string; // "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
@@ -85,6 +89,7 @@ export const DEFAULT_TOGGLE_SHORTCUT = "alt+r";
 export const DEFAULT_CANCEL_SHORTCUT = ""; // no default shortcut — use /cancel-review command
 
 export const DEFAULT_SETTINGS: AutoReviewSettings = {
+  enabled: true,
   maxReviewLoops: 100,
   model: "amazon-bedrock/us.meta.llama4-maverick-17b-instruct-v1:0",
   thinkingLevel: "off",
@@ -111,6 +116,16 @@ export function parseSettings(parsed: Record<string, unknown>): {
 } {
   const errors: string[] = [];
   const settings = { ...DEFAULT_SETTINGS };
+
+  if ("enabled" in parsed) {
+    if (typeof parsed.enabled === "boolean") {
+      settings.enabled = parsed.enabled;
+    } else {
+      errors.push(
+        `[hard-no] "enabled" must be a boolean (got ${JSON.stringify(parsed.enabled)}). Using default: ${DEFAULT_SETTINGS.enabled}.`,
+      );
+    }
+  }
 
   if ("maxReviewLoops" in parsed) {
     if (
@@ -329,4 +344,67 @@ export async function loadReviewRules(cwd: string): Promise<string | null> {
 export async function loadAutoReviewRules(cwd: string): Promise<string | null> {
   const content = await readConfigFile(cwd, "auto-review.md");
   return content?.trim() || null;
+}
+
+// ── Runtime on/off toggle ──────────────────────────────
+
+/**
+ * Fast synchronous read of just the `enabled` field from settings.json.
+ * Called on each agent_end to pick up toggles made by external tools (e.g.
+ * `roundhouse` `/toggle-review`) without restarting the session.
+ *
+ * Local (.hardno/settings.json in cwd) takes precedence over global
+ * (~/.pi/.hardno/settings.json). Returns null if not set / unreadable /
+ * malformed — callers should fall back to their cached settings value.
+ */
+export function isEnabledFromDisk(cwd: string, home?: string): boolean | null {
+  for (const dir of configDirs(cwd, home)) {
+    try {
+      const raw = readFileSync(join(dir, "settings.json"), "utf8");
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        if (typeof parsed.enabled === "boolean") return parsed.enabled;
+        // File exists but no `enabled` key — don't fall through to next dir,
+        // since the more-specific file "wins" even when silent on this field.
+        return null;
+      }
+    } catch {
+      /* try next dir */
+    }
+  }
+  return null;
+}
+
+/**
+ * Persist `enabled: boolean` to the global settings file (~/.pi/.hardno/settings.json).
+ * Atomic tmp+rename; preserves other fields. Creates the file/dir if missing.
+ *
+ * Chose the global file over the local one because:
+ *   - Toggle intent is user-wide, not project-scoped
+ *   - Local .hardno/ may not exist for every cwd
+ *   - External tools (roundhouse) can target one known path
+ */
+export function writeEnabledToDisk(enabled: boolean, home?: string): void {
+  const globalDir = join(home ?? homedir(), ".pi", ".hardno");
+  const target = join(globalDir, "settings.json");
+
+  // Read existing (preserve other fields)
+  let existing: Record<string, unknown> = {};
+  try {
+    const raw = readFileSync(target, "utf8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      existing = parsed as Record<string, unknown>;
+    }
+  } catch {
+    /* file missing or malformed — start fresh */
+  }
+
+  existing.enabled = enabled;
+
+  // Atomic write: tmp + rename in the same directory
+  mkdirSync(globalDir, { recursive: true });
+  const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+  writeFileSync(tmp, JSON.stringify(existing, null, 2) + "\n", { encoding: "utf8" });
+  renameSync(tmp, target);
 }

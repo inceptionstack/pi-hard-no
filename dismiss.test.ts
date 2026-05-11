@@ -1,15 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { findingKey, numberFindings, parseDismissals, filterSuppressed, DismissTracker } from "./dismiss";
+import {
+  findingKey,
+  numberFindings,
+  parseDismissals,
+  filterSuppressed,
+  DismissTracker,
+} from "./dismiss";
 
 describe("findingKey", () => {
   it("extracts severity + location from finding line", () => {
-    const line = '- **Medium:** src/gateway/model.ts:97 — chatId extraction uses wrong index';
+    const line = "- **Medium:** src/gateway/model.ts:97 — chatId extraction uses wrong index";
     const key = findingKey(line);
     expect(key).toContain("medium:src/gateway/model.ts:97");
   });
 
   it("handles numbered finding format (F# prefix)", () => {
-    const line = '- **F1 Medium:** src/foo.ts:10 — something bad';
+    const line = "- **F1 Medium:** src/foo.ts:10 — something bad";
     const key = findingKey(line);
     expect(key).toBe("medium:src/foo.ts:10 — something bad");
   });
@@ -22,7 +28,7 @@ describe("findingKey", () => {
 
 describe("numberFindings", () => {
   it("numbers finding bullets sequentially", () => {
-    const text = '- **High:** foo.ts:1 — bug\n- **Low:** bar.ts:2 — nit\nSome other text';
+    const text = "- **High:** foo.ts:1 — bug\n- **Low:** bar.ts:2 — nit\nSome other text";
     const { numbered, findings } = numberFindings(text);
     expect(numbered).toContain("**F1 High:**");
     expect(numbered).toContain("**F2 Low:**");
@@ -31,7 +37,7 @@ describe("numberFindings", () => {
   });
 
   it("preserves non-finding lines unchanged", () => {
-    const text = 'Header\n\n- **Medium:** x.ts:5 — issue\n\nFooter';
+    const text = "Header\n\n- **Medium:** x.ts:5 — issue\n\nFooter";
     const { numbered } = numberFindings(text);
     expect(numbered).toContain("Header");
     expect(numbered).toContain("Footer");
@@ -41,7 +47,8 @@ describe("numberFindings", () => {
 
 describe("parseDismissals", () => {
   it("parses DISMISS F# with colon separator", () => {
-    const text = "The chatId extraction is intentional.\nDISMISS F1: intentional design for telegram thread format";
+    const text =
+      "The chatId extraction is intentional.\nDISMISS F1: intentional design for telegram thread format";
     const dismissals = parseDismissals(text);
     expect(dismissals.size).toBe(1);
     expect(dismissals.get(1)).toBe("intentional design for telegram thread format");
@@ -69,21 +76,21 @@ describe("parseDismissals", () => {
 
 describe("filterSuppressed", () => {
   it("removes suppressed findings", () => {
-    const text = '- **High:** foo.ts:1 — bug one\n- **Low:** bar.ts:2 — nit two';
-    const suppressed = new Set([findingKey('- **High:** foo.ts:1 — bug one')]);
+    const text = "- **High:** foo.ts:1 — bug one\n- **Low:** bar.ts:2 — nit two";
+    const suppressed = new Set([findingKey("- **High:** foo.ts:1 — bug one")]);
     const result = filterSuppressed(text, suppressed);
     expect(result).not.toContain("bug one");
     expect(result).toContain("nit two");
   });
 
   it("returns null when all findings suppressed", () => {
-    const text = '- **High:** foo.ts:1 — bug one';
-    const suppressed = new Set([findingKey('- **High:** foo.ts:1 — bug one')]);
+    const text = "- **High:** foo.ts:1 — bug one";
+    const suppressed = new Set([findingKey("- **High:** foo.ts:1 — bug one")]);
     expect(filterSuppressed(text, suppressed)).toBeNull();
   });
 
   it("returns original when no suppressions", () => {
-    const text = '- **Low:** x.ts:5 — something';
+    const text = "- **Low:** x.ts:5 — something";
     expect(filterSuppressed(text, new Set())).toBe(text);
   });
 });
@@ -91,7 +98,7 @@ describe("filterSuppressed", () => {
 describe("DismissTracker", () => {
   it("tracks dismissals and suppresses after threshold", () => {
     const tracker = new DismissTracker();
-    const findings = ['- **Medium:** src/foo.ts:10 — bad pattern', '- **Low:** src/bar.ts:5 — nit'];
+    const findings = ["- **Medium:** src/foo.ts:10 — bad pattern", "- **Low:** src/bar.ts:5 — nit"];
     tracker.setLastFindings(findings);
 
     // First dismiss
@@ -106,7 +113,7 @@ describe("DismissTracker", () => {
 
   it("reset clears all state", () => {
     const tracker = new DismissTracker();
-    tracker.setLastFindings(['- **High:** x.ts:1 — bug']);
+    tracker.setLastFindings(["- **High:** x.ts:1 — bug"]);
     tracker.processDismissals("DISMISS F1: nope");
     tracker.processDismissals("DISMISS F1: nope again");
     expect(tracker.getSuppressed().size).toBe(1);

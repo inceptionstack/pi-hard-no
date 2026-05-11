@@ -8,8 +8,18 @@ import {
   loadShortcutSettingsSync,
   configDirs,
   readConfigFile,
+  isEnabledFromDisk,
+  writeEnabledToDisk,
 } from "../settings";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  readFileSync,
+  existsSync,
+  readdirSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";
 
@@ -567,6 +577,184 @@ describe("readConfigFile", () => {
       expect(result).toBe("local-only");
     } finally {
       d.cleanup();
+    }
+  });
+});
+
+describe("enabled setting", () => {
+  it("parseSettings defaults enabled to true", () => {
+    const { settings } = parseSettings({});
+    expect(settings.enabled).toBe(true);
+  });
+
+  it("parseSettings accepts explicit enabled=false", () => {
+    const { settings, errors } = parseSettings({ enabled: false });
+    expect(settings.enabled).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
+  it("parseSettings accepts explicit enabled=true", () => {
+    const { settings, errors } = parseSettings({ enabled: true });
+    expect(settings.enabled).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  it("parseSettings rejects non-boolean enabled with error + default", () => {
+    const { settings, errors } = parseSettings({ enabled: "yes" });
+    expect(settings.enabled).toBe(DEFAULT_SETTINGS.enabled);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toMatch(/"enabled".*boolean/);
+  });
+});
+
+describe("isEnabledFromDisk", () => {
+  function makeDirs() {
+    const root = mkdtempSync(join(tmpdir(), "hardno-toggle-"));
+    const localDir = join(root, "project");
+    const fakeHome = join(root, "home");
+    const localCfg = join(localDir, ".hardno");
+    const globalCfg = join(fakeHome, ".pi", ".hardno");
+    mkdirSync(localCfg, { recursive: true });
+    mkdirSync(globalCfg, { recursive: true });
+    return {
+      root,
+      localDir,
+      fakeHome,
+      localCfg,
+      globalCfg,
+      cleanup() {
+        rmSync(root, { recursive: true, force: true });
+      },
+    };
+  }
+
+  it("returns null when no settings file exists", () => {
+    const d = makeDirs();
+    try {
+      expect(isEnabledFromDisk(d.localDir, d.fakeHome)).toBeNull();
+    } finally {
+      d.cleanup();
+    }
+  });
+
+  it("reads enabled=false from global settings", () => {
+    const d = makeDirs();
+    try {
+      writeFileSync(join(d.globalCfg, "settings.json"), JSON.stringify({ enabled: false }));
+      expect(isEnabledFromDisk(d.localDir, d.fakeHome)).toBe(false);
+    } finally {
+      d.cleanup();
+    }
+  });
+
+  it("reads enabled=true from local settings (local wins)", () => {
+    const d = makeDirs();
+    try {
+      writeFileSync(join(d.globalCfg, "settings.json"), JSON.stringify({ enabled: false }));
+      writeFileSync(join(d.localCfg, "settings.json"), JSON.stringify({ enabled: true }));
+      expect(isEnabledFromDisk(d.localDir, d.fakeHome)).toBe(true);
+    } finally {
+      d.cleanup();
+    }
+  });
+
+  it("returns null when local file exists but has no enabled key (doesn't fall through)", () => {
+    // Rationale: the more-specific file wins even when silent. This prevents
+    // a surprise where removing `enabled` from local silently exposes global.
+    const d = makeDirs();
+    try {
+      writeFileSync(join(d.localCfg, "settings.json"), JSON.stringify({ model: "x/y" }));
+      writeFileSync(join(d.globalCfg, "settings.json"), JSON.stringify({ enabled: false }));
+      expect(isEnabledFromDisk(d.localDir, d.fakeHome)).toBeNull();
+    } finally {
+      d.cleanup();
+    }
+  });
+
+  it("returns null on malformed JSON (caller falls back to cached)", () => {
+    const d = makeDirs();
+    try {
+      writeFileSync(join(d.globalCfg, "settings.json"), "{ not json");
+      expect(isEnabledFromDisk(d.localDir, d.fakeHome)).toBeNull();
+    } finally {
+      d.cleanup();
+    }
+  });
+});
+
+describe("writeEnabledToDisk", () => {
+  function makeFakeHome() {
+    const root = mkdtempSync(join(tmpdir(), "hardno-write-"));
+    return {
+      fakeHome: root,
+      settingsPath: join(root, ".pi", ".hardno", "settings.json"),
+      cleanup() {
+        rmSync(root, { recursive: true, force: true });
+      },
+    };
+  }
+
+  it("creates settings file when missing", () => {
+    const h = makeFakeHome();
+    try {
+      writeEnabledToDisk(false, h.fakeHome);
+      const raw = readFileSync(h.settingsPath, "utf8");
+      expect(JSON.parse(raw).enabled).toBe(false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("preserves other fields when flipping enabled", () => {
+    const h = makeFakeHome();
+    try {
+      mkdirSync(join(h.fakeHome, ".pi", ".hardno"), { recursive: true });
+      writeFileSync(h.settingsPath, JSON.stringify({ model: "a/b", reviewTimeoutMs: 99_999 }));
+      writeEnabledToDisk(true, h.fakeHome);
+      const parsed = JSON.parse(readFileSync(h.settingsPath, "utf8"));
+      expect(parsed.enabled).toBe(true);
+      expect(parsed.model).toBe("a/b");
+      expect(parsed.reviewTimeoutMs).toBe(99_999);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("overwrites existing enabled value", () => {
+    const h = makeFakeHome();
+    try {
+      writeEnabledToDisk(false, h.fakeHome);
+      writeEnabledToDisk(true, h.fakeHome);
+      expect(JSON.parse(readFileSync(h.settingsPath, "utf8")).enabled).toBe(true);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("recovers from malformed existing file (overwrites with fresh content)", () => {
+    const h = makeFakeHome();
+    try {
+      mkdirSync(join(h.fakeHome, ".pi", ".hardno"), { recursive: true });
+      writeFileSync(h.settingsPath, "{ corrupt");
+      writeEnabledToDisk(false, h.fakeHome);
+      const parsed = JSON.parse(readFileSync(h.settingsPath, "utf8"));
+      expect(parsed.enabled).toBe(false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("leaves no tmp file behind", () => {
+    const h = makeFakeHome();
+    try {
+      writeEnabledToDisk(false, h.fakeHome);
+      const dir = join(h.fakeHome, ".pi", ".hardno");
+      const files = readdirSync(dir);
+      expect(files.some((f) => f.startsWith("settings.json.tmp"))).toBe(false);
+      expect(files).toContain("settings.json");
+      expect(existsSync(h.settingsPath)).toBe(true);
+    } finally {
+      h.cleanup();
     }
   });
 });
