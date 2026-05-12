@@ -35,16 +35,18 @@ export function numberFindings(text: string): { numbered: string; findings: stri
   const findings: string[] = [];
   let counter = 0;
 
-  const numbered = lines.map(line => {
-    // Match finding bullets: - **Severity:** ...
-    const match = line.match(/^(\s*-\s*)\*\*(\w+):\*\*(.*)$/);
-    if (match) {
-      counter++;
-      findings.push(line);
-      return `${match[1]}**F${counter} ${match[2]}:**${match[3]}`;
-    }
-    return line;
-  }).join("\n");
+  const numbered = lines
+    .map((line) => {
+      // Match finding bullets: - **Severity:** ...
+      const match = line.match(/^(\s*-\s*)\*\*(\w+):\*\*(.*)$/);
+      if (match) {
+        counter++;
+        findings.push(line);
+        return `${match[1]}**F${counter} ${match[2]}:**${match[3]}`;
+      }
+      return line;
+    })
+    .join("\n");
 
   return { numbered, findings };
 }
@@ -53,7 +55,7 @@ export function numberFindings(text: string): { numbered: string; findings: stri
 export function parseDismissals(text: string): Map<number, string> {
   const dismissals = new Map<number, string>();
   // Match: DISMISS F1: reason  or  DISMISS F1 - reason  or  DISMISS F1 reason
-  const pattern = /DISMISS\s+F(\d+)\s*[:–\-]\s*(.+)/gi;
+  const pattern = /DISMISS\s+F(\d+)\s*[:–-]\s*(.+)/gi;
   let match;
   while ((match = pattern.exec(text)) !== null) {
     dismissals.set(parseInt(match[1], 10), match[2].trim());
@@ -66,7 +68,7 @@ export function filterSuppressed(text: string, suppressed: Set<string>): string 
   if (suppressed.size === 0) return text;
 
   const lines = text.split("\n");
-  const filtered = lines.filter(line => {
+  const filtered = lines.filter((line) => {
     const match = line.match(/^\s*-\s*\*\*\w+:\*\*/);
     if (!match) return true; // keep non-finding lines
     const key = findingKey(line);
@@ -74,7 +76,7 @@ export function filterSuppressed(text: string, suppressed: Set<string>): string 
   });
 
   // If all findings were suppressed, return null (should be LGTM)
-  const remaining = filtered.filter(l => l.match(/^\s*-\s*\*\*/));
+  const remaining = filtered.filter((l) => l.match(/^\s*-\s*\*\*/));
   if (remaining.length === 0) return null;
 
   return filtered.join("\n");
@@ -112,7 +114,9 @@ export class DismissTracker {
         this.dismissed.set(key, { key, reason, count: 1 });
       }
       count++;
-      log(`dismiss: F${fNum} dismissed (${key}) — "${reason}" [count=${this.dismissed.get(key)!.count}]`);
+      log(
+        `dismiss: F${fNum} dismissed (${key}) — "${reason}" [count=${this.dismissed.get(key)!.count}]`,
+      );
     }
     return count;
   }
