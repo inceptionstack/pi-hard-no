@@ -53,7 +53,7 @@ export function numberFindings(text: string): { numbered: string; findings: stri
 export function parseDismissals(text: string): Map<number, string> {
   const dismissals = new Map<number, string>();
   // Match: DISMISS F1: reason  or  DISMISS F1 - reason  or  DISMISS F1 reason
-  const pattern = /DISMISS\s+F(\d+)\s*[:–\-]\s*(.+)/gi;
+  const pattern = /DISMISS\s+F(\d+)\s*[:–-]\s*(.+)/gi;
   let match;
   while ((match = pattern.exec(text)) !== null) {
     dismissals.set(parseInt(match[1], 10), match[2].trim());
