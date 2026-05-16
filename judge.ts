@@ -66,7 +66,7 @@ TAXONOMY (authoritative):
 - npm/pnpm/yarn/pip/cargo install, make, cargo build, npm run format, codegen scripts → modifying
 - kill/pkill/systemctl, docker run, docker compose up → modifying
 - sed -i, perl -pi → modifying (in-place edit)
-- perl -e, python -c, node -e, ruby -e (one-liners) → unsure (static analysis cannot determine side effects)
+- perl -e, python -c, node -e, ruby -e (one-liners) → unsure (static analysis cannot determine side effects; caught by detectSubprocessWrapper pre-check)
 - ./script.sh or npm run <unknown> → unsure unless clearly read-only
 - truncated command (e.g. "git commi") → unsure
 - Compound commands with &&, ;, ||, pipes, subshells: ANY modifying part → modifying; ANY unknown/truncated → unsure; otherwise the class of the safest-subset.
@@ -105,27 +105,32 @@ export function parseJudgeResponse(raw: string): BashClassification {
 /**
  * Detect subprocess wrappers (perl -e, python -c, node -e, ruby -e) that cannot
  * be statically analyzed. Returns 'unsure' for these patterns (conservative).
+ *
+ * Note: False-positives are acceptable here (fail-safe direction). Regexes match
+ * broadly to catch unquoted/variable forms (perl -e $code) and even literal strings
+ * in other commands (echo "perl -e foo"), since marking those 'unsure' is
+ * safer than missing an actual one-liner.
  */
 function detectSubprocessWrapper(command: string): BashClassification | null {
   if (!command) return null;
 
-  // perl -e '...' or perl -E '...'
-  if (/\bperl\b.*\s-[eE]\s+['"]/.test(command)) {
+  // perl -e / -E with any argument (quoted, unquoted, or variable)
+  if (/\bperl\b.*\s-[eE](?:\s+\S|$)/.test(command)) {
     return "unsure";
   }
 
-  // python -c '...' or python3 -c '...'
-  if (/\bpython\d?\b.*\s-c\s+['"]/.test(command)) {
+  // python / python3 -c with any argument
+  if (/\bpython\d?\b.*\s-c(?:\s+\S|$)/.test(command)) {
     return "unsure";
   }
 
-  // node -e '...' or node --eval '...'
-  if (/\bnode\b.*(?:\s-[eE]|--eval)\s+['"]/.test(command)) {
+  // node -e / -E / --eval with any argument
+  if (/\bnode\b.*(?:\s-[eE]|--eval)(?:\s+\S|$)/.test(command)) {
     return "unsure";
   }
 
-  // ruby -e '...'
-  if (/\bruby\b.*\s-e\s+['"]/.test(command)) {
+  // ruby -e with any argument
+  if (/\bruby\b.*\s-e(?:\s+\S|$)/.test(command)) {
     return "unsure";
   }
 
