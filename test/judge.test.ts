@@ -158,3 +158,115 @@ describe("classifyBashCommand", () => {
     expect(await classifyBashCommand(runner, "something", fakeOpts)).toBe("unsure");
   });
 });
+
+describe("classifyBashCommand - subprocess wrapper detection", () => {
+  const fakeOpts = { signal: AbortSignal.timeout(5000), cwd: "/tmp", model: "test/model" };
+
+  it("returns unsure for perl -e without calling the runner", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, "perl -e 'print 1'", fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+
+  it("returns unsure for python -c without calling the runner", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, 'python -c "print(1)"', fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+
+  it("returns unsure for python3 -c without calling the runner", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, 'python3 -c "print(1)"', fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+
+  it("returns unsure for node -e without calling the runner", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, 'node -e "console.log(1)"', fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+
+  it("returns unsure for node --eval without calling the runner", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, 'node --eval "console.log(1)"', fakeOpts)).toBe(
+      "unsure",
+    );
+    expect(called).toBe(0);
+  });
+
+  it("returns unsure for ruby -e without calling the runner", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, 'ruby -e "puts 1"', fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+
+  it("calls the runner for non-wrapper commands", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, "git status", fakeOpts)).toBe("inspection_vcs_noop");
+    expect(called).toBe(1);
+  });
+});
+
+describe("classifyBashCommand - subprocess wrapper edge cases", () => {
+  const fakeOpts = { signal: AbortSignal.timeout(5000), cwd: "/tmp", model: "test/model" };
+
+  it("returns unsure for perl -e without quotes (unquoted form)", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, "perl -e some_code", fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+
+  it("returns unsure for python -c with variable expansion", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    expect(await classifyBashCommand(runner, "python -c $payload", fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+
+  it("handles false-positive: literal perl string in echo (acceptable fail-safe)", async () => {
+    let called = 0;
+    const runner: JudgeRunner = async () => {
+      called++;
+      return { text: '{"classification":"inspection_vcs_noop"}' };
+    };
+    // This is a false-positive (echo doesn't execute perl), but it's acceptable
+    // because: (1) it's safe (echo is harmless), (2) fail-safe is better than missing real one-liners
+    expect(await classifyBashCommand(runner, 'echo "perl -e foo"', fakeOpts)).toBe("unsure");
+    expect(called).toBe(0);
+  });
+});

@@ -166,7 +166,11 @@ export class ReviewOrchestrator {
     // All findings suppressed — treat as LGTM
     if (filtered === null) {
       log("dismiss: all findings suppressed — treating as LGTM");
-      return { ...result, isLgtm: true, text: "No issues found (previously dismissed findings suppressed)." };
+      return {
+        ...result,
+        isLgtm: true,
+        text: "No issues found (previously dismissed findings suppressed).",
+      };
     }
 
     // Number remaining findings and track them
