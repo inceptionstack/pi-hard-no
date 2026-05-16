@@ -66,6 +66,7 @@ TAXONOMY (authoritative):
 - npm/pnpm/yarn/pip/cargo install, make, cargo build, npm run format, codegen scripts → modifying
 - kill/pkill/systemctl, docker run, docker compose up → modifying
 - sed -i, perl -pi → modifying (in-place edit)
+- perl -e, python -c, node -e, ruby -e (one-liners) → unsure (static analysis cannot determine side effects)
 - ./script.sh or npm run <unknown> → unsure unless clearly read-only
 - truncated command (e.g. "git commi") → unsure
 - Compound commands with &&, ;, ||, pipes, subshells: ANY modifying part → modifying; ANY unknown/truncated → unsure; otherwise the class of the safest-subset.
@@ -102,8 +103,41 @@ export function parseJudgeResponse(raw: string): BashClassification {
 }
 
 /**
+ * Detect subprocess wrappers (perl -e, python -c, node -e, ruby -e) that cannot
+ * be statically analyzed. Returns 'unsure' for these patterns (conservative).
+ */
+function detectSubprocessWrapper(command: string): BashClassification | null {
+  if (!command) return null;
+
+  // perl -e '...' or perl -E '...'
+  if (/\bperl\b.*\s-[eE]\s+['"]/.test(command)) {
+    return "unsure";
+  }
+
+  // python -c '...' or python3 -c '...'
+  if (/\bpython\d?\b.*\s-c\s+['"]/.test(command)) {
+    return "unsure";
+  }
+
+  // node -e '...' or node --eval '...'
+  if (/\bnode\b.*(?:\s-[eE]|--eval)\s+['"]/.test(command)) {
+    return "unsure";
+  }
+
+  // ruby -e '...'
+  if (/\bruby\b.*\s-e\s+['"]/.test(command)) {
+    return "unsure";
+  }
+
+  return null;
+}
+
+/**
  * Run the judge on a single bash command. Always resolves (never rejects);
  * any failure collapses to `unsure` so the caller's skip logic stays safe.
+ *
+ * Pre-checks for subprocess wrappers (perl -e, python -c, etc.) before calling
+ * the LLM, since these patterns cannot be statically analyzed.
  */
 export async function classifyBashCommand(
   runner: JudgeRunner,
@@ -111,6 +145,14 @@ export async function classifyBashCommand(
   opts: JudgeOptions,
 ): Promise<BashClassification> {
   if (!command || typeof command !== "string") return "unsure";
+
+  // Deterministic pre-check: subprocess wrappers
+  const subprocessResult = detectSubprocessWrapper(command);
+  if (subprocessResult) {
+    log(`judge: detected subprocess wrapper (${command.slice(0, 40)}...) → unsure`);
+    return subprocessResult;
+  }
+
   try {
     const { text } = await runner(command, opts);
     return parseJudgeResponse(text);
