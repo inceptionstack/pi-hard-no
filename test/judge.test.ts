@@ -198,9 +198,7 @@ describe("classifyBashCommand - subprocess wrapper detection", () => {
       called++;
       return { text: '{"classification":"inspection_vcs_noop"}' };
     };
-    expect(await classifyBashCommand(runner, 'node -e "console.log(1)"', fakeOpts)).toBe(
-      "unsure",
-    );
+    expect(await classifyBashCommand(runner, 'node -e "console.log(1)"', fakeOpts)).toBe("unsure");
     expect(called).toBe(0);
   });
 
@@ -232,9 +230,7 @@ describe("classifyBashCommand - subprocess wrapper detection", () => {
       called++;
       return { text: '{"classification":"inspection_vcs_noop"}' };
     };
-    expect(await classifyBashCommand(runner, "git status", fakeOpts)).toBe(
-      "inspection_vcs_noop",
-    );
+    expect(await classifyBashCommand(runner, "git status", fakeOpts)).toBe("inspection_vcs_noop");
     expect(called).toBe(1);
   });
 });

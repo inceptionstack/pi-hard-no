@@ -706,7 +706,9 @@ export default function (pi: ExtensionAPI) {
 
     // Process DISMISS markers from agent's response (before running review)
     if (lastAssistant) {
-      const textParts = (lastAssistant.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text);
+      const textParts = (lastAssistant.content ?? [])
+        .filter((b: any) => b.type === "text")
+        .map((b: any) => b.text);
       const agentText = textParts.join("\n");
       if (agentText) {
         orchestrator.processDismissals(agentText);
