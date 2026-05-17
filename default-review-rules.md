@@ -1,3 +1,11 @@
+## Files to Skip
+
+- `MEMORY.md`, `.MEMORY.md` — agent durable session state (not code under review)
+- Configuration files that are auto-generated or user-specific (e.g., `.env`, `.vscode/settings.json`)
+- Lock files and dist directories (auto-generated, not code to review)
+
+---
+
 ## Correctness & Bugs
 
 - **Off-by-one errors**: wrong loop bounds (< vs <=, 0-indexed vs 1-indexed), fence-post errors in slicing/substring, incorrect range endpoints

@@ -37,3 +37,7 @@ coverage/
 
 # Secrets vault
 .psst/
+
+# Memory / durable state
+MEMORY.md
+.MEMORY.md

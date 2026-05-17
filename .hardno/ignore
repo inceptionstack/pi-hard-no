@@ -1,0 +1,17 @@
+# Files to skip from pi-hard-no review
+
+# Agent session state (not code to review)
+MEMORY.md
+.MEMORY.md
+
+# Auto-generated / user-specific
+.env
+.env.*
+.vscode/settings.json
+.idea/
+
+# Build artifacts
+dist/
+node_modules/
+*.js.map
+coverage/
